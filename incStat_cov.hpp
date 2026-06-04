@@ -30,6 +30,8 @@ public:
     std::array<double,2> get_stats1();
     // calculates and pulls all correlative stats AND 2D stats from both streams
     std::array<double,4> get_stats2();
+    // calculates and pulls all correlative stats AND 2D stats AND the regular stats from both streams (incStat)
+    std::array<double,8> get_stats3();
     // calculates and pulls all correlative stats AND the regular stats from both incStats AND 2D stats
     std::array<double,10> get_stats4();
     // get headers
