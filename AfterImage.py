@@ -187,7 +187,14 @@ class incStat_cov:
 
     # calculates and pulls all correlative stats AND 2D stats AND the regular stats from both streams (incStat)
     def get_stats3(self):
-        return [self.incStats[0].w,self.incStats[0].mean(),self.incStats[0].std(),self.incStats[1].w,self.incStats[1].mean(),self.incStats[1].std(),self.cov(), self.pcc()]
+        return [self.incStats[0].w,
+                self.incStats[0].mean(),
+                self.incStats[0].std(),
+                self.incStats[1].w,
+                self.incStats[1].mean(),
+                self.incStats[1].std(),
+                self.cov(), 
+                self.pcc()]
 
     # calculates and pulls all correlative stats AND the regular stats from both incStats AND 2D stats
     def get_stats4(self):
@@ -213,13 +220,36 @@ class incStat_cov:
         if ver == 1:
             headers = ["covariance_"+s0+"_"+s1, "pcc_"+s0+"_"+s1]
         if ver == 2:
-            headers = ["radius_"+s0+"_"+s1, "magnitude_"+s0+"_"+s1, "covariance_"+s0+"_"+s1, "pcc_"+s0+"_"+s1]
+            headers = ["radius_"+s0+"_"+s1, 
+                       "magnitude_"+s0+"_"+s1, 
+                       "covariance_"+s0+"_"+s1, 
+                       "pcc_"+s0+"_"+s1]
         if ver == 3:
-            headers = ["weight_"+s0, "mean_"+s0, "std_"+s0,"weight_"+s1, "mean_"+s1, "std_"+s1, "covariance_"+s0+"_"+s1, "pcc_"+s0+"_"+s1]
+            headers = ["weight_"+s0, 
+                       "mean_"+s0, 
+                       "std_"+s0,
+                       "weight_"+s1, 
+                       "mean_"+s1, 
+                       "std_"+s1, 
+                       "covariance_"+s0+"_"+s1, 
+                       "pcc_"+s0+"_"+s1]
         if ver == 4:
-            headers = ["weight_" + s0, "mean_" + s0, "std_" + s0, "covariance_" + s0 + "_" + s1, "pcc_" + s0 + "_" + s1]
+            headers = ["weight_" + s0, 
+                       "mean_" + s0,
+                        "std_" + s0, 
+                        "covariance_" + s0 + "_" + s1, 
+                        "pcc_" + s0 + "_" + s1]
         if ver == 5:
-            headers = ["weight_"+s0, "mean_"+s0, "std_"+s0,"weight_"+s1, "mean_"+s1, "std_"+s1, "radius_"+s0+"_"+s1, "magnitude_"+s0+"_"+s1, "covariance_"+s0+"_"+s1, "pcc_"+s0+"_"+s1]
+            headers = ["weight_"+s0, 
+                       "mean_"+s0, 
+                       "std_"+s0,
+                       "weight_"+s1, 
+                       "mean_"+s1, 
+                       "std_"+s1, 
+                       "radius_"+s0+"_"+s1, 
+                       "magnitude_"+s0+"_"+s1, 
+                       "covariance_"+s0+"_"+s1, 
+                       "pcc_"+s0+"_"+s1]
         return headers
 
 
