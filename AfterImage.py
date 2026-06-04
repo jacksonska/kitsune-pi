@@ -14,7 +14,6 @@ class incStat:
         self.cur_mean = np.nan
         self.cur_var = np.nan
         self.cur_std = np.nan
-        self.covs = [] # a list of incStat_covs (references) with relate to this incStat
 
     def insert(self, v, t=0):  # v is a scalar, t is v's arrival the timestamp
         if self.isTypeDiff:
@@ -32,10 +31,6 @@ class incStat:
         self.cur_mean = np.nan  # force recalculation if called
         self.cur_var = np.nan
         self.cur_std = np.nan
-
-        # update covs (if any)
-        for cov in self.covs:
-            cov.update_cov(self.ID, v, t)
 
     def processDecay(self, timestamp):
         factor=1
@@ -67,24 +62,6 @@ class incStat:
             self.cur_std = math.sqrt(self.var())
         return self.cur_std
 
-    def cov(self,ID2):
-        for cov in self.covs:
-            if cov.incStats[0].ID == ID2 or cov.incStats[1].ID == ID2:
-                return cov.cov()
-        return [np.nan]
-
-    def pcc(self,ID2):
-        for cov in self.covs:
-            if cov.incStats[0].ID == ID2 or cov.incStats[1].ID == ID2:
-                return cov.pcc()
-        return [np.nan]
-
-    def cov_pcc(self,ID2):
-        for cov in self.covs:
-            if cov.incStats[0].ID == ID2 or cov.incStats[1].ID == ID2:
-                return cov.get_stats1()
-        return [np.nan]*2
-
     def radius(self, other_incStats):  # the radius of a set of incStats
         A = self.var()**2
         for incS in other_incStats:
@@ -102,17 +79,6 @@ class incStat:
         self.cur_mean = self.CF1 / self.w
         self.cur_var = abs(self.CF2 / self.w - math.pow(self.cur_mean, 2))
         return [self.w, self.cur_mean, self.cur_var]
-
-    #calculates and pulls all stats on this stream, and stats shared with the indicated stream
-    def allstats_2D(self, ID2):
-        stats1D = self.allstats_1D()
-        # Find cov component
-        stats2D = [np.nan] * 4
-        for cov in self.covs:
-            if cov.incStats[0].ID == ID2 or cov.incStats[1].ID == ID2:
-                stats2D = cov.get_stats2()
-                break
-        return stats1D + stats2D
 
     def getHeaders_1D(self, suffix=True):
         if self.ID is None:
@@ -261,6 +227,7 @@ class incStatDB:
     # default_lambda: use this as the lambda for all streams. If not specified, then you must supply a Lambda with every query.
     def __init__(self,limit=np.Inf,default_lambda=np.nan):
         self.HT = dict()
+        self.cov_index = dict()  # maps incStat key (ID+"_"+str(Lambda)) -> list[incStat_cov]
         self.limit = limit
         self.df_lambda = default_lambda
 
@@ -295,21 +262,28 @@ class incStatDB:
         incS1 = self.register(ID1,Lambda,init_time,isTypeDiff)
         incS2 = self.register(ID2,Lambda,init_time,isTypeDiff)
 
+        key1 = ID1+"_"+str(Lambda)
+        key2 = ID2+"_"+str(Lambda)
+
         #check for pre-exiting link
-        for cov in incS1.covs:
+        for cov in self.cov_index.get(key1, []):
             if cov.incStats[0].ID == ID2 or cov.incStats[1].ID == ID2:
                 return cov #there is a pre-exiting link
 
         # Link incStats
         inc_cov = incStat_cov(incS1,incS2,init_time)
-        incS1.covs.append(inc_cov)
-        incS2.covs.append(inc_cov)
+        self.cov_index.setdefault(key1, []).append(inc_cov)
+        self.cov_index.setdefault(key2, []).append(inc_cov)
         return inc_cov
 
     # updates/registers stream
     def update(self,ID,t,v,Lambda=1,isTypeDiff=False):
         incS = self.register(ID,Lambda,t,isTypeDiff)
         incS.insert(v,t)
+        # propagate update to any registered cov trackers for this stream
+        key = ID+"_"+str(incS.Lambda)
+        for cov in self.cov_index.get(key, []):
+            cov.update_cov(ID, v, t)
         return incS
 
     # Pulls current stats from the given ID
@@ -330,12 +304,16 @@ class incStatDB:
         Lambda = self.get_lambda(Lambda)
 
         # Get incStat
-        incS1 = self.HT.get(ID1 + "_" + str(Lambda))
+        key1 = ID1 + "_" + str(Lambda)
+        incS1 = self.HT.get(key1)
         if incS1 is None:  # does not exist
             return [np.na]*2
 
         # find relevant cov entry
-        return incS1.cov_pcc(ID2)
+        for cov in self.cov_index.get(key1, []):
+            if cov.incStats[0].ID == ID2 or cov.incStats[1].ID == ID2:
+                return cov.get_stats1()
+        return [np.na]*2
 
     # Pulls all correlational stats registered with the given ID
     # returns tuple [0]: stats-covs&pccs, [2]: IDs
@@ -344,14 +322,15 @@ class incStatDB:
         Lambda = self.get_lambda(Lambda)
 
         # Get incStat
-        incS1 = self.HT.get(ID + "_" + str(Lambda))
+        key = ID + "_" + str(Lambda)
+        incS1 = self.HT.get(key)
         if incS1 is None:  # does not exist
             return ([],[])
 
         # find relevant cov entry
         stats = []
         IDs = []
-        for cov in incS1.covs:
+        for cov in self.cov_index.get(key, []):
             stats.append(cov.get_stats1())
             IDs.append([cov.incStats[0].ID,cov.incStats[1].ID])
         return stats,IDs
@@ -444,6 +423,16 @@ class incStatDB:
                 key = entry[0]
                 del entry[1][0]
                 del self.HT[key]
+                # also drop any cov links referencing the removed stream
+                removed_covs = self.cov_index.pop(key, [])
+                for cov in removed_covs:
+                    for other in cov.incStats:
+                        other_key = other.ID + "_" + str(other.Lambda)
+                        if other_key == key:
+                            continue
+                        bucket = self.cov_index.get(other_key)
+                        if bucket is not None:
+                            self.cov_index[other_key] = [c for c in bucket if c is not cov]
                 n=n+1
             elif W > cutoffWeight:
                 break
