@@ -1,4 +1,5 @@
 #include <print>
+#include <cmath>
 #include "incStat_cov.hpp"
 
 void incStat_cov::update_cov(int id, int value, int time)
@@ -27,5 +28,23 @@ void incStat_cov::update_cov(int id, int value, int time)
     // compute and update residual
     double residual {value - this->incStats_[inc].mean()};
     double resid {residual * this->lastRes_[not_inc]};
+    this->cf3_ += resid;
+    this->w3_ += 1;
+    this->lastRes_[inc] = res;
+}
 
+double incStat_cov::processDecay(std::size_t time, int micro_inc_indx)
+{
+    double factor {1};
+    // check for decay cf3
+    int timeDiffs_cf3 {time - this->lastTimestamp_cf3_};
+    if (timeDiffs_cf3 > 0)
+    {
+        factor = std::pow(2, (-this->incStats_[micro_inc_indx].Lambda) * timeDiffs_cf3);
+        this->cf3_ *= factor;
+        this->w3_ *= factor;
+        this->lastTimestamp_cf3_ = time;
+        this->lastRes_[micro_inc_indx] *= factor;
+    }
+    return factor;
 }
