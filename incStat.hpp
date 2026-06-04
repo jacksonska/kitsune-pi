@@ -7,8 +7,10 @@
 
 #include "incStat_cov.hpp"
 
-class incStat {
-public:
+
+class incStat 
+{
+    public:
 
     incStat() = delete;
     
@@ -29,11 +31,11 @@ public:
     // return current std
     double std();
     // return cov approximation
-    std::expected<std::vector<double>&, std::exception> cov(int id2);
+    std::expected<std::vector<double>&, std::string> cov(int id2);
     // return pcc
     double pcc (int id2);
     // return cov_pcc
-    std::expected<<std::array<double,2>, std::exception> cov_pcc(int id2);
+    std::expected< std::array<double,2>, std::string> cov_pcc(int id2);
     // return radius of a set of incStats
     double radius(const std::vector<incStat>& other_incStats);
     // magintude of this incStat versus others
@@ -49,10 +51,6 @@ public:
     std::array<std::string,6> getHeaders_2D(int id2, bool suffix=true);
 
     
-
-
-
-private:
     int id_;
     int lastTimestamp_;
 
@@ -63,5 +61,48 @@ private:
     
     std::array<double,5> lambda_;
     std::vector<incStat_cov> covs_;
-    
+
+
+    private:  
 };
+
+// @brief like incStat, but maintains stats between two streams
+class incStat_cov 
+{
+public:
+    incStat_cov() = delete;
+
+    incStat_cov(incStat is1, incStat is2, int init_time = 0)
+    : incStats_({is1, is2}), lastRes_({0, 0}), cf3_(0), w3_(1e-20), lastTimestamp_cf3_(init_time)
+    {}
+
+    // update the stream with the value at a given time.
+    void update_cov(int id, int value, int time);
+    // process the decay of index at time
+    double processDecay(std::size_t time, int micro_inc_indx);
+    // covariance approximation
+    double cov();
+    // Pearson corl. coef
+    double pcc();
+    // calculates and pulls all correlative stats
+    std::array<double,2> get_stats1();
+    // calculates and pulls all correlative stats AND 2D stats from both streams
+    std::array<double,4> get_stats2();
+    // calculates and pulls all correlative stats AND the regular stats from both incStats AND 2D stats
+    std::array<double,10> get_stats4();
+    // get headers
+    std::vector<std::string> getHeaders(std::size_t ver, bool suffix=true);
+
+
+    // references to the stream's incStats
+    std::array<incStat,2> incStats_;
+    std::array<double, 2> lastRes_;
+
+    // init sum product residuals
+    int cf3_; // 0
+    double w3_; // 1e-20
+    int lastTimestamp_cf3_;
+
+    private:
+
+}; 

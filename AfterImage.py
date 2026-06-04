@@ -225,7 +225,16 @@ class incStat_cov:
 
     # calculates and pulls all correlative stats AND the regular stats from both incStats AND 2D stats
     def get_stats4(self):
-        return [self.incStats[0].w,self.incStats[0].mean(),self.incStats[0].std(),self.incStats[1].w,self.incStats[1].mean(),self.incStats[1].std(), self.incStats[0].radius([self.incStats[1]]),self.incStats[0].magnitude([self.incStats[1]]),self.cov(), self.pcc()]
+        return [self.incStats[0].w,
+                self.incStats[0].mean(),
+                self.incStats[0].std(),
+                self.incStats[1].w,
+                self.incStats[1].mean(),
+                self.incStats[1].std(), 
+                self.incStats[0].radius([self.incStats[1]]),
+                self.incStats[0].magnitude([self.incStats[1]]),
+                self.cov(), 
+                self.pcc()]
 
     def getHeaders(self,ver,suffix=True): #ver = {1,2,3,4}
         headers = []
