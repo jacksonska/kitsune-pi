@@ -35,7 +35,7 @@ void incStat_cov::update_cov(int id, int value, int time)
 
 double incStat_cov::processDecay(std::size_t time, int micro_inc_indx)
 {
-    double factor {1};
+    double factor {1.0};
     // check for decay cf3
     int timeDiffs_cf3 {time - this->lastTimestamp_cf3_};
     if (timeDiffs_cf3 > 0)
@@ -47,4 +47,19 @@ double incStat_cov::processDecay(std::size_t time, int micro_inc_indx)
         this->lastRes_[micro_inc_indx] *= factor;
     }
     return factor;
+}
+
+double cov()
+{
+    return this->cf3_ / this->w3_;
+}
+
+double pcc()
+{
+    ss = this->incStats_[0].std() * this->incStats_[1].std();
+    if (ss != 0)
+    {
+        return this->cov() / ss;
+    }
+    return 0.0;
 }
