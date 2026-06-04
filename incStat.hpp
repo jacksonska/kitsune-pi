@@ -5,7 +5,7 @@
 #include <expected>
 #include <exception>
 
-struct incStat_cov; // forward declare, for now.
+#include "incStat_cov.hpp"
 
 class incStat {
 public:
