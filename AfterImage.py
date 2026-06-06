@@ -255,7 +255,7 @@ class incStat_cov:
 
 class incStatDB:
     # default_lambda: use this as the lambda for all streams. If not specified, then you must supply a Lambda with every query.
-    def __init__(self,limit=np.Inf,default_lambda=np.nan):
+    def __init__(self,limit=np.inf,default_lambda=np.nan):
         self.HT = dict()
         self.cov_index = dict()  # maps incStat key (ID+"_"+str(Lambda)) -> list[incStat_cov]
         self.limit = limit
