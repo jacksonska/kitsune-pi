@@ -2,3 +2,4 @@ Cython
 scapy
 numpy
 scipy
+matplotlib
