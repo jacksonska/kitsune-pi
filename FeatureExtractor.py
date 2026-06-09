@@ -16,6 +16,7 @@ print("Importing Scapy Library")
 from scapy.all import *
 import os.path
 import platform
+import shlex
 import subprocess
 
 
@@ -29,7 +30,9 @@ class FE:
         self.parse_type = None #unknown
         self.curPacketIndx = 0
         self.tsvin = None #used for parsing TSV file
+        self.tsvinf = None #file or pipe handle backing self.tsvin
         self.scapyin = None #used for parsing pcap with scapy
+        self._tshark_proc = None #live tshark subprocess (streaming mode)
 
         ### Prep pcap ##
         self.__prep__()
@@ -66,11 +69,9 @@ class FE:
 
         ##If file is pcap
         elif type == "pcap" or type == 'pcapng':
-            # Try parsing via tshark dll of wireshark (faster)
+            # Try streaming via tshark (faster; no intermediate .tsv on disk)
             if os.path.isfile(self._tshark):
-                self.pcap2tsv_with_tshark()  # creates local tsv file
-                self.path += ".tsv"
-                self.parse_type = "tsv"
+                self.parse_type = "tshark_stream"
             else: # Otherwise, parse with scapy (slower)
                 print("tshark not found. Trying scapy...")
                 self.parse_type = "scapy"
@@ -80,25 +81,18 @@ class FE:
 
         ### open readers ##
         if self.parse_type == "tsv":
-            maxInt = sys.maxsize
-            decrement = True
-            while decrement:
-                # decrease the maxInt value by factor 10
-                # as long as the OverflowError occurs.
-                decrement = False
-                try:
-                    csv.field_size_limit(maxInt)
-                except OverflowError:
-                    maxInt = int(maxInt / 10)
-                    decrement = True
-
+            self._bump_csv_field_limit()
             print("counting lines in file...")
             num_lines = sum(1 for line in open(self.path))
             print("There are " + str(num_lines) + " Packets.")
             self.limit = min(self.limit, num_lines-1)
             self.tsvinf = open(self.path, 'rt', encoding="utf8")
             self.tsvin = csv.reader(self.tsvinf, delimiter='\t')
-            row = self.tsvin.__next__() #move iterator past header
+            self.tsvin.__next__() #move iterator past header
+
+        elif self.parse_type == "tshark_stream":
+            self._bump_csv_field_limit()
+            self._spawn_tshark_stream()
 
         else: # scapy
             print("Reading PCAP file via Scapy...")
@@ -106,15 +100,31 @@ class FE:
             self.limit = len(self.scapyin)
             print("Loaded " + str(len(self.scapyin)) + " Packets.")
 
+    def _bump_csv_field_limit(self):
+        maxInt = sys.maxsize
+        decrement = True
+        while decrement:
+            # decrease the maxInt value by factor 10
+            # as long as the OverflowError occurs.
+            decrement = False
+            try:
+                csv.field_size_limit(maxInt)
+            except OverflowError:
+                maxInt = int(maxInt / 10)
+                decrement = True
+
     def get_next_vector(self):
         if self.curPacketIndx == self.limit:
-            if self.parse_type == 'tsv':
-                self.tsvinf.close()
+            self._close_inputs()
             return []
 
         ### Parse next packet ###
-        if self.parse_type == "tsv":
-            row = self.tsvin.__next__()
+        if self.parse_type == "tsv" or self.parse_type == "tshark_stream":
+            try:
+                row = self.tsvin.__next__()
+            except StopIteration:
+                self._close_inputs()
+                return []
             IPtype = np.nan
             timestamp = row[0]
             framelen = row[1]
@@ -207,12 +217,34 @@ class FE:
             return []
 
 
-    def pcap2tsv_with_tshark(self):
-        print('Parsing with tshark...')
-        fields = "-e frame.time_epoch -e frame.len -e eth.src -e eth.dst -e ip.src -e ip.dst -e tcp.srcport -e tcp.dstport -e udp.srcport -e udp.dstport -e icmp.type -e icmp.code -e arp.opcode -e arp.src.hw_mac -e arp.src.proto_ipv4 -e arp.dst.hw_mac -e arp.dst.proto_ipv4 -e ipv6.src -e ipv6.dst"
-        cmd =  '"' + self._tshark + '" -r '+ self.path +' -T fields '+ fields +' -E header=y -E occurrence=f > '+self.path+".tsv"
-        subprocess.call(cmd,shell=True)
-        print("tshark parsing complete. File saved as: "+self.path +".tsv")
+    def _close_inputs(self):
+        if self.tsvinf is not None:
+            try:
+                self.tsvinf.close()
+            except Exception:
+                pass
+            self.tsvinf = None
+        if self._tshark_proc is not None:
+            try:
+                self._tshark_proc.wait(timeout=5)
+            except Exception:
+                self._tshark_proc.kill()
+            self._tshark_proc = None
+
+    def _tshark_fields(self):
+        return "-e frame.time_epoch -e frame.len -e eth.src -e eth.dst -e ip.src -e ip.dst -e tcp.srcport -e tcp.dstport -e udp.srcport -e udp.dstport -e icmp.type -e icmp.code -e arp.opcode -e arp.src.hw_mac -e arp.src.proto_ipv4 -e arp.dst.hw_mac -e arp.dst.proto_ipv4 -e ipv6.src -e ipv6.dst"
+
+    def _spawn_tshark_stream(self):
+        print('Streaming packets from tshark...')
+        args = [self._tshark, "-r", self.path, "-T", "fields",
+                *shlex.split(self._tshark_fields()),
+                "-E", "header=y", "-E", "occurrence=f"]
+        self._tshark_proc = subprocess.Popen(
+            args, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            encoding="utf8", bufsize=1)
+        self.tsvinf = self._tshark_proc.stdout
+        self.tsvin = csv.reader(self.tsvinf, delimiter='\t')
+        self.tsvin.__next__()  # consume header row
 
     def get_num_features(self):
         return len(self.nstat.getNetStatHeaders())
