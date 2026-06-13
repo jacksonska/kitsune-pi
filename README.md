@@ -1,3 +1,5 @@
+# Kitsune-Pi fork
+
 # Using tshark to parse packets
 ## On RPi
 ```bash
@@ -22,15 +24,11 @@ python3 -m venv venv
 source venv/bin/activate # (on MAC)
 pip install -r requirements.txt
 ```
-## Running example.py - Pre-recorded data
+## Running example.py - Run against Pre-recorded data (Mirai attack)
 ```bash
 python3 example.py
 ```
 
-## Run the live version of demo
-```bash
-python3 demo.py
-``` 
 
 
 
